@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block titulo %}Panel{% endblock %}
+
+{# Escribe el atributo style completo desde Jinja (así el editor no lo marca como CSS inválido) #}
+{% macro estilo(propiedad, porcentaje) %}style="{{ propiedad }}: {{ porcentaje | round(1) }}%"{% endmacro %}
+
+{# Barra horizontal: etiqueta, valor y escala (mínimo-máximo) #}
+{% macro barra(etiqueta, valor, minimo, maximo, texto, bajo=False) %}
+    {% set p = ([[(valor - minimo) / (maximo - minimo), 0] | max, 1] | min) * 100 %}
+    <div class="hbar {% if bajo %}bajo{% endif %}">
+        <span>{{ etiqueta }}</span>
+        <div class="pista"><span {{ estilo('width', p) }}></span></div>
+        <b>{{ texto }}</b>
+    </div>
+{% endmacro %}
+
+{# Coordenadas de la matriz (SVG de 600 × 380): competencias 50-100 %, objetivos 50-120 % #}
+{% macro mx(v) %}{{ (60 + ([[v, 50] | max, 100] | min - 50) / 50 * 525) | round(1) }}{% endmacro %}
+{% macro my(v) %}{{ (12 + (1 - ([[v, 50] | max, 120] | min - 50) / 70) * 318) | round(1) }}{% endmacro %}
+
+{% block contenido %}
+<section class="band">
+    <div class="head-row">
+        <p class="eyebrow">Panel de indicadores · período {{ periodo_actual }}{% if area %} · {{ area }}{% endif %}{% if alcance %} · {{ alcance }}{% endif %}</p>
+        {% if es_gh %}
+        <form method="get" class="filtro-area">
+            <label for="area" class="mut small">Área</label>
+            <select id="area" name="area" onchange="this.form.submit()">
+                <option value="">Toda la planta</option>
+                {% for a in areas %}<option {% if a == area %}selected{% endif %}>{{ a }}</option>{% endfor %}
+            </select>
+            <noscript><button class="btn sm">Ver</button></noscript>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if s.evaluados == 0 %}
+        <h1>Aún no hay evaluaciones en este período</h1>
+        <p class="lead">Cuando se registren las primeras evaluaciones aparecerán aquí los indicadores
+            {% if alcance %}de tu equipo{% elif area %}del área{% else %}de la planta{% endif %}.</p>
+        <a class="btn" href="{{ url_for('evaluar') }}">Registrar evaluación</a>
+    {% else %}
+        {% set clase = clasificar(s.promedio) %}
+        {% set baja = s.por_competencia[0] %}
+        <h1>Desempeño promedio {% if alcance %}de {{ alcance }}{% elif area %}de {{ area }}{% else %}de la planta{% endif %}: {{ s.promedio | dec }}
+            <span class="badge k-{{ clase.k }}">{{ clase.nombre }}</span></h1>
+        <p class="lead">La competencia más baja es <b>{{ baja.nombre }}</b> ({{ baja.promedio | dec }} de 5):
+            es la primera necesidad de formación del período{% if s.atencion %}, y {{ s.atencion | length }}
+            {{ 'persona necesita' if s.atencion | length == 1 else 'personas necesitan' }} plan de mejora{% endif %}.</p>
+
+        <div class="kpis">
+            <div class="kpi"><b>{{ s.completas }} de {{ s.total }}</b><span>con evaluación completa (auto + jefe)</span></div>
+            <div class="kpi"><b>{{ s.distribucion[0].total }}</b><span>{{ 'colaborador sobresaliente' if s.distribucion[0].total == 1 else 'colaboradores sobresalientes' }}</span></div>
+            <div class="kpi"><b>{{ s.atencion | length }}</b><span>{{ 'requiere' if s.atencion | length == 1 else 'requieren' }} plan de mejora (menos de 75)</span></div>
+            <div class="kpi"><b>{{ (acciones.total or 0) - (acciones.cumplidas or 0) }}</b>
+                <span>acciones de desarrollo abiertas · {{ acciones.cumplidas or 0 }} cumplidas{% if acciones.vencidas %} · <span class="alerta">{{ acciones.vencidas }} vencidas</span>{% endif %}</span></div>
+        </div>
+    {% endif %}
+</section>
+
+{% if s.evaluados %}
+<section class="band grid2">
+    <div class="card">
+        <h2>Competencias frente a resultados</h2>
+        <p class="mut small">Cada punto es un colaborador; haz clic para ver su ficha.
+            {% if s.evaluados > s.matriz | length %}{{ s.evaluados - s.matriz | length }} sin objetivos medidos no aparecen.{% endif %}</p>
+        <svg class="matriz" viewBox="0 0 600 380" role="img" aria-label="Matriz de competencias frente a cumplimiento de objetivos">
+            {# Cuadrantes destacados #}
+            <rect class="q-alto" x="{{ mx(75) }}" y="{{ my(120) }}" width="{{ mx(100)|float - mx(75)|float }}" height="{{ my(90)|float - my(120)|float }}"/>
+            <rect class="q-bajo" x="{{ mx(50) }}" y="{{ my(90) }}" width="{{ mx(75)|float - mx(50)|float }}" height="{{ my(50)|float - my(90)|float }}"/>
+            {# Rejilla y ejes #}
+            {% for v in [50, 60, 70, 80, 90, 100] %}
+                <line class="rejilla" x1="{{ mx(v) }}" x2="{{ mx(v) }}" y1="12" y2="330"/>
+                <text x="{{ mx(v) }}" y="348" text-anchor="middle">{{ v }}</text>
+            {% endfor %}
+            {% for v in [50, 70, 90, 110] %}
+                <line class="rejilla" x1="60" x2="585" y1="{{ my(v) }}" y2="{{ my(v) }}"/>
+                <text x="52" y="{{ my(v)|float + 4 }}" text-anchor="end">{{ v }}</text>
+            {% endfor %}
+            <line class="corte" x1="{{ mx(75) }}" x2="{{ mx(75) }}" y1="12" y2="330"/>
+            <line class="corte" x1="60" x2="585" y1="{{ my(90) }}" y2="{{ my(90) }}"/>
+            <text class="cuadrante" x="579" y="30" text-anchor="end">Referentes</text>
+            <text class="cuadrante" x="68" y="30">Cumple metas: desarrollar competencias</text>
+            <text class="cuadrante" x="579" y="322" text-anchor="end">Buena conducta: revisar metas</text>
+            <text class="cuadrante" x="68" y="322">Plan de mejora prioritario</text>
+            <text x="322" y="375" text-anchor="middle">Competencias (% del máximo)</text>
+            <text transform="translate(14 171) rotate(-90)" text-anchor="middle">Cumplimiento de objetivos (%)</text>
+            {# Colaboradores #}
+            {% for p in s.matriz %}
+                {% set derecha = mx(p.x)|float < 545 %}
+                <a href="{{ url_for('resultados', empleado=p.id) }}">
+                    <title>{{ p.nombre }}: competencias {{ p.x | dec(0) }} %, objetivos {{ p.y | dec(0) }} %</title>
+                    <circle class="punto-{{ p.k }}" cx="{{ mx(p.x) }}" cy="{{ my(p.y) }}" r="7"/>
+                    {% if s.matriz | length <= 40 %}
+                    <text class="etiqueta" x="{{ mx(p.x)|float + (10 if derecha else -10) }}" y="{{ my(p.y)|float + 4 }}"
+                          text-anchor="{{ 'start' if derecha else 'end' }}">{{ p.iniciales }}</text>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </svg>
+    </div>
+
+    <div class="card">
+        <h2>Distribución por clasificación</h2>
+        <div class="apilada">
+            {% for d in s.distribucion if d.total %}
+                <span class="k-{{ d.k }}" {{ estilo('width', d.total / s.evaluados * 100) }}>{{ d.total }}</span>
+            {% endfor %}
+        </div>
+        <ul class="leyenda">
+            {% for d in s.distribucion %}<li><i class="k-{{ d.k }}"></i>{{ d.nombre }}: {{ d.total }}</li>{% endfor %}
+        </ul>
+
+        {% if not area and not alcance %}
+        <h2 style="margin-top:26px">Promedio por área</h2>
+        {% for a in s.por_area %}
+            {{ barra(a.area, a.promedio, 50, 100, a.promedio | dec, a.promedio < 75) }}
+        {% endfor %}
+        {% endif %}
+    </div>
+</section>
+
+<section class="band grid2">
+    <div class="card">
+        <h2>Promedio por competencia (1 a 5)</h2>
+        <p class="mut small">De menor a mayor. En coral, las que están por debajo de 3,5: deben entrar al plan de capacitación.</p>
+        {% for c in s.por_competencia %}
+            {{ barra(c.nombre, c.promedio, 1, 5, c.promedio | dec, c.promedio < 3.5) }}
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>Requieren atención</h2>
+        {% if s.atencion %}
+        <p class="mut small">Puntaje final menor a 75 (En desarrollo o Requiere mejora), del más bajo al más alto.</p>
+        <table class="tbl">
+            {% for f in s.atencion[:10] %}
+            <tr>
+                <td><a class="nombre" href="{{ url_for('planes', empleado=f.emp.id) }}">{{ f.emp.nombre }}</a><br><span class="mut small">{{ f.emp.cargo }}</span></td>
+                <td class="num"><b>{{ f.r.final | dec }}</b> <span class="badge sm k-{{ f.r.clase.k }}">{{ f.r.clase.nombre }}</span></td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% if s.atencion | length > 10 %}<p class="mut small">y {{ s.atencion | length - 10 }} más.</p>{% endif %}
+        {% else %}
+            <p class="mut">Nadie está por debajo de 75 en este período.</p>
+        {% endif %}
+
+        <h2 style="margin-top:26px">Mejores resultados</h2>
+        <table class="tbl">
+            {% for f in s.destacados %}
+            <tr>
+                <td><a class="nombre" href="{{ url_for('resultados', empleado=f.emp.id) }}">{{ f.emp.nombre }}</a><br><span class="mut small">{{ f.emp.cargo }}</span></td>
+                <td class="num"><b>{{ f.r.final | dec }}</b> <span class="badge sm k-{{ f.r.clase.k }}">{{ f.r.clase.nombre }}</span></td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        {% if s.pendientes %}
+            <p style="margin-top:18px"><a class="btn ghost" href="{{ url_for('evaluar') }}">{{ s.pendientes }} colaborador{{ 'es' if s.pendientes > 1 }} con evaluación pendiente</a></p>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

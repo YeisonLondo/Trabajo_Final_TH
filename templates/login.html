@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ingresar · Compás 360</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+<main class="acceso">
+    <div class="caja">
+        <div class="brand">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="21" fill="none" stroke-width="3"/>
+                <path d="M24 24 33 14 27 27Z" fill="#c8410b"/>
+                <path d="M24 24 15 34 21 21Z" fill="#0d5a5e"/>
+            </svg>
+            <div>
+                <b>Compás 360</b>
+                <span class="mut">Evaluación del desempeño · mabe Colombia, planta Manizales</span>
+            </div>
+        </div>
+
+        <h1 style="font-size:28px">Ingresar</h1>
+
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+            {% for categoria, texto in mensajes %}<div class="msg {{ categoria }}">{{ texto }}</div>{% endfor %}
+        {% endwith %}
+
+        <form method="post">
+            <label class="fld"><span>Usuario</span>
+                <input name="usuario" required autofocus autocomplete="username" autocapitalize="none"></label>
+            <label class="fld"><span>Contraseña</span>
+                <input name="clave" type="password" required autocomplete="current-password"></label>
+            <button class="btn" style="width:100%">Ingresar</button>
+        </form>
+
+        <div class="demo">
+            <b>Usuarios de prueba</b> (contraseña <code>Mabe2026*</code>):<br>
+            <code>jzuluaga</code> Gestión Humana ·
+            <code>agiraldo</code> Jefe (supervisor de ensamble) ·
+            <code>jmarin</code> Colaborador (operario)
+        </div>
+    </div>
+</main>
+</body>
+</html>

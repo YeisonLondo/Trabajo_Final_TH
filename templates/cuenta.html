@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Mi cuenta{% endblock %}
+
+{% block contenido %}
+<section class="band formulario">
+    <p class="eyebrow">Mi cuenta</p>
+    <h1>{{ usuario.nombre or usuario.usuario }}</h1>
+    <p class="mut">Usuario <b>{{ usuario.usuario }}</b> · Rol: {{ roles[usuario.rol] }}{% if usuario.cargo %} · {{ usuario.cargo }}{% endif %}</p>
+
+    <form method="post" class="card">
+        <h2>Cambiar contraseña</h2>
+        {% if usuario.debe_cambiar %}
+            <p class="aviso">Estás usando la contraseña inicial. Debes cambiarla para continuar.</p>
+        {% endif %}
+        <label class="fld"><span>Contraseña actual</span>
+            <input type="password" name="actual" required autocomplete="current-password"></label>
+        <div class="two">
+            <label class="fld"><span>Contraseña nueva</span>
+                <input type="password" name="nueva" required minlength="8" autocomplete="new-password"></label>
+            <label class="fld"><span>Confirmar contraseña nueva</span>
+                <input type="password" name="confirmar" required minlength="8" autocomplete="new-password"></label>
+        </div>
+        <p class="mut small">Mínimo 8 caracteres, combinando letras y números.</p>
+        <div class="row end">
+            {% if not usuario.debe_cambiar %}<a class="btn ghost" href="{{ url_for('inicio') }}">Cancelar</a>{% endif %}
+            <button class="btn">Guardar contraseña</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

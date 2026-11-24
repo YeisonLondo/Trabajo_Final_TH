@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block titulo %}Evaluar{% endblock %}
+
+{% block contenido %}
+<section class="band">
+    <p class="eyebrow">Registrar evaluación · período {{ periodo_actual }}</p>
+    <h1>Evaluación por competencias 360°</h1>
+    {% if es_gh %}
+    <p class="lead">Elige a quién evalúas y desde qué relación. Gestión Humana también puede registrar evaluaciones
+        hechas en papel por personal sin acceso a computador. Cada nivel de la escala describe una conducta observable.</p>
+    {% else %}
+    <p class="lead">Elige a quién evalúas. El sistema identifica la relación según el organigrama y la evaluación
+        queda a tu nombre. Cada nivel de la escala describe una conducta observable.</p>
+    {% endif %}
+
+    {% if periodo and periodo.estado == 'cerrado' %}
+        <div class="msg error">El período {{ periodo_actual }} está cerrado. Cambia al período abierto para registrar evaluaciones.</div>
+    {% endif %}
+
+    {% if pendientes %}
+    <div class="pendientes">
+        <b>{{ 'Pendientes para cerrar el período' if es_gh else 'Te falta evaluar' }} ({{ pendientes | length }}):</b>
+        {% for p in pendientes[:12] %}
+            <a class="chip enlace" href="{{ url_for('evaluar', empleado=p.id, relacion=p.relacion) }}">{{ p.nombre }} · {{ p.texto }}</a>
+        {% endfor %}
+        {% if pendientes | length > 12 %}<span class="mut">y {{ pendientes | length - 12 }} más</span>{% endif %}
+    </div>
+    {% endif %}
+</section>
+
+<section class="band">
+    <form method="post" id="form-evaluacion" class="evaluacion">
+        <div class="three">
+            <label class="fld"><span>Colaborador evaluado</span>
+                <select name="empleado_id" id="empleado" required>
+                    <option value="">Selecciona…</option>
+                    {% for e in empleados %}
+                        <option value="{{ e.id }}" data-lider="{{ e.es_lider }}" data-nombre="{{ e.nombre }}" data-jefe="{{ e.jefe or '' }}"{% if not es_gh %} data-rel="{{ nombres_rel[relacion_de[e.id]] }}"{% endif %}
+                                {% if e.id == form.empleado_id %}selected{% endif %}>{{ e.nombre }} · {{ e.cargo }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% if es_gh %}
+            <label class="fld"><span>Relación con el evaluado</span>
+                <select name="relacion_id" id="relacion">
+                    {% for r in relaciones %}
+                        <option value="{{ r.id }}" {% if r.id == form.relacion_id %}selected{% endif %}>{{ r.nombre }} (peso {{ (r.peso * 100) | round | int }} %)</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="fld"><span>Nombre de quien evalúa</span>
+                <input name="evaluador" id="evaluador" required value="{{ form.evaluador }}" placeholder="Nombre y apellido">
+            </label>
+            {% else %}
+            <label class="fld"><span>Relación con el evaluado</span>
+                <input id="relacion-texto" readonly value="{{ nombres_rel[relacion_de[form.empleado_id]] if form.empleado_id in relacion_de else 'Selecciona a quién evalúas' }}">
+            </label>
+            <label class="fld"><span>Quien evalúa</span>
+                <input name="evaluador" readonly value="{{ form.evaluador }}">
+            </label>
+            {% endif %}
+        </div>
+        <p class="mut small" id="nota-relacion">Si la misma persona vuelve a evaluar al mismo colaborador en el período, su evaluación anterior se reemplaza.
+            Las evaluaciones de pares y de colaboradores a cargo se muestran de forma anónima en los resultados.</p>
+
+        {% for c in competencias %}
+        {% set valor = form.puntajes.get(c.id) %}
+        <fieldset class="comp" {% if c.solo_lideres %}data-solo-lideres="1"{% endif %}>
+            <legend><b>{{ c.nombre }}.</b> <span class="mut">{{ c.descripcion }}</span></legend>
+            <div class="escala">
+                {% for desc in c.niveles %}
+                    <label class="punto">
+                        <input type="radio" name="c_{{ c.id }}" value="{{ loop.index }}" data-desc="{{ desc }}"
+                               {% if valor == loop.index %}checked{% endif %}>
+                        <span>{{ loop.index }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <div class="escala-pista"><span>Muy bajo</span><span>Excelente</span></div>
+            <p class="conducta">
+                {% if valor %}<b>Nivel {{ valor }}:</b> {{ c.niveles[valor - 1] }}
+                {% else %}<span class="mut">Selecciona el nivel que mejor describe la conducta observada.</span>{% endif %}
+            </p>
+        </fieldset>
+        {% endfor %}
+
+        <div class="two" style="margin-top:8px">
+            <label class="fld"><span>Fortalezas observadas</span>
+                <textarea name="fortalezas" rows="3">{{ form.fortalezas }}</textarea></label>
+            <label class="fld"><span>Aspectos por mejorar</span>
+                <textarea name="mejoras" rows="3">{{ form.mejoras }}</textarea></label>
+        </div>
+        <div class="row end">
+            <a class="btn ghost" href="{{ url_for('evaluar') }}">Limpiar</a>
+            <button class="btn">Guardar evaluación</button>
+        </div>
+    </form>
+</section>
+
+{% if recientes %}
+<section class="band">
+    <h2>Últimas evaluaciones registradas</h2>
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Evaluado</th><th>Relación</th><th>Evaluador</th><th>Fecha</th><th></th></tr>
+            {% for v in recientes %}
+            <tr>
+                <td>{{ v.evaluado }}</td><td>{{ v.relacion }}</td><td>{{ v.evaluador }}</td>
+                <td style="white-space:nowrap">{{ v.fecha }}</td>
+                <td class="acciones">
+                    <form method="post" action="{{ url_for('evaluaciones_eliminar', eval_id=v.id) }}"
+                          onsubmit="return confirm('¿Eliminar esta evaluación?');">
+                        <button class="btn sm danger">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/evaluar.js') }}"></script>
+{% endblock %}

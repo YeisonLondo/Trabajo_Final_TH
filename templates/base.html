@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Inicio{% endblock %} · Compás 360</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+
+<header class="top">
+    <div class="in">
+        <a class="brand" href="{{ url_for('inicio') }}">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="21" fill="none" stroke="#fff" stroke-width="3"/>
+                <path d="M24 7v5M24 36v5M7 24h5M36 24h5" stroke="#ffffff99" stroke-width="3" stroke-linecap="round"/>
+                <path d="M24 24 33 14 27 27Z" fill="#ff8a5c"/>
+                <path d="M24 24 15 34 21 21Z" fill="#fff"/>
+            </svg>
+            <div>
+                <b>Compás 360</b>
+                <span>Sistema de evaluación del desempeño · Propuesta para mabe Colombia, planta Manizales</span>
+            </div>
+        </a>
+
+        <div class="hctl">
+            {# Selector del período: se guarda en la sesión del usuario #}
+            <form class="periodo" method="post" action="{{ url_for('cambiar_periodo') }}">
+                <label for="periodo">Período</label>
+                <select id="periodo" name="periodo" onchange="this.form.submit()">
+                    {% for p in periodos %}
+                        <option value="{{ p.id }}" {% if p.id == periodo_actual %}selected{% endif %}>
+                            {{ p.id }}{% if p.estado == 'cerrado' %} (cerrado){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="volver" value="{{ request.path }}">
+                <noscript><button class="btn sm">Cambiar</button></noscript>
+            </form>
+            {% if usuario %}
+            <div class="sesion">
+                <span><b>{{ usuario.nombre or usuario.usuario }}</b><br>{{ roles[usuario.rol] }}</span>
+                <a href="{{ url_for('cuenta') }}">Mi cuenta</a>
+                <a href="{{ url_for('logout') }}">Salir</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+<nav class="tabs" aria-label="Secciones">
+    <div class="in">
+        {% for endpoint, nombre in menu %}
+            <a href="{{ url_for(endpoint) }}" {% if request.endpoint and request.endpoint.startswith(endpoint) %}class="activo" aria-current="page"{% endif %}>{{ nombre }}</a>
+        {% endfor %}
+    </div>
+</nav>
+
+{# Mensajes de confirmación o error (flash) #}
+{% with mensajes = get_flashed_messages(with_categories=true) %}
+    {% if mensajes %}
+        <div class="mensajes">
+            {% for categoria, texto in mensajes %}
+                <div class="msg {{ categoria }}">{{ texto }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<main>
+    {% block contenido %}{% endblock %}
+</main>
+</body>
+</html>

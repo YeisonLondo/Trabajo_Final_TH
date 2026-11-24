@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block titulo %}Resultados · {{ emp.nombre }}{% endblock %}
+
+{# Escribe el atributo style completo desde Jinja (así el editor no lo marca como CSS inválido) #}
+{% macro estilo(propiedad, porcentaje) %}style="{{ propiedad }}: {{ porcentaje | round(1) }}%"{% endmacro %}
+
+{% macro medidor(valor, auto=None) %}
+    {% if valor is none %}—{% else %}
+    <div class="medidor-fila">
+        <div class="medidor {% if valor < 3.5 %}bajo{% endif %}">
+            <span {{ estilo('width', (valor - 1) / 4 * 100) }}></span>
+            {% if auto is not none %}<i {{ estilo('left', (auto - 1) / 4 * 100) }} title="Autoevaluación"></i>{% endif %}
+        </div>
+        <b>{{ valor | dec }}</b>
+    </div>
+    {% endif %}
+{% endmacro %}
+
+{% block contenido %}
+<section class="band">
+    <div class="head-row">
+        <form method="get" class="selector">
+            <p class="eyebrow">Resultados 360° · período {{ periodo_actual }}</p>
+            <label class="fld"><span>Colaborador</span>
+                <select name="empleado" onchange="this.form.submit()">
+                    {% for e in empleados %}
+                        <option value="{{ e.id }}" {% if e.id == emp.id %}selected{% endif %}>{{ e.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <noscript><button class="btn sm">Ver</button></noscript>
+        </form>
+        <div class="row">
+            {% if es_gh %}
+                <a class="btn ghost" href="{{ url_for('evaluar', empleado=emp.id, relacion='jefe') }}">Evaluar a esta persona</a>
+            {% elif emp.id == usuario.empleado_id %}
+                <a class="btn ghost" href="{{ url_for('evaluar', empleado=emp.id) }}">Hacer mi autoevaluación</a>
+            {% else %}
+                <a class="btn ghost" href="{{ url_for('evaluar', empleado=emp.id) }}">Evaluar a esta persona</a>
+            {% endif %}
+            <a class="btn" href="{{ url_for('planes', empleado=emp.id) }}">Plan de desarrollo</a>
+        </div>
+    </div>
+
+    <div class="ficha">
+        <div>
+            <h1>{{ emp.nombre }}</h1>
+            <p class="mut">{{ emp.cargo }} · {{ emp.area }} · {{ emp.nivel }}{% if emp.jefe %} · Jefe: {{ emp.jefe }}{% endif %}</p>
+            <p>
+                {% if r.num_evaluaciones == 0 %}<span class="chip">Sin evaluar</span>
+                {% elif r.completa %}<span class="chip ok">Completa · {{ r.num_evaluaciones }} eval.</span>
+                {% else %}<span class="chip warn">Pendiente · {{ r.num_evaluaciones }} eval.</span>{% endif %}
+                <span class="mut small">
+                    {% for rid, rel in r.relaciones.items() %}{{ rel.nombre }}: {{ r.por_relacion[rid] }}{% if not loop.last %} · {% endif %}{% endfor %}
+                </span>
+            </p>
+            {% if r.faltan and periodo and periodo.estado == 'abierto' %}<p class="aviso">Falta {{ r.faltan | join(' y ') }} para cerrar el proceso.</p>{% endif %}
+        </div>
+        <div class="puntaje">
+            {% if r.final is not none %}
+                <div class="grande">{{ r.final | dec }}</div>
+                <span class="badge k-{{ r.clase.k }}">{{ r.clase.nombre }}</span>
+                <dl>
+                    <div><dt>Competencias · 60 %</dt><dd>{{ r.comp_promedio | dec }} de 5</dd></div>
+                    <div><dt>Objetivos · 40 %</dt><dd>{% if r.obj_pct is not none %}{{ r.obj_pct | dec(0) }} %{% else %}Sin medir{% endif %}</dd></div>
+                </dl>
+            {% else %}
+                <p class="mut">Sin evaluaciones en este período.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+{% if r.num_evaluaciones %}
+<section class="band">
+    <h2>Resultado por competencia</h2>
+    <p class="mut small">Ponderación: jefe 40 %, pares 25 %, equipo a cargo 20 % y autoevaluación 15 %.
+        Si falta una fuente, su peso se reparte entre las demás. El rombo marca la autoevaluación.</p>
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Competencia</th><th class="num">Auto</th><th class="num">Jefe</th><th class="num">Pares</th><th class="num">Equipo</th><th style="width:34%">Ponderado</th></tr>
+            {% for c in r.competencias %}
+            <tr>
+                <td>{{ c.nombre }}</td>
+                {% for fuente in ['auto', 'jefe', 'par', 'colab'] %}
+                    <td class="num">{{ c.fuentes.get(fuente) | dec }}</td>
+                {% endfor %}
+                <td>{{ medidor(c.ponderado, c.auto) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</section>
+
+<section class="band grid3">
+    <div class="card">
+        <h3>Fortalezas</h3>
+        {% if r.fortalezas %}
+            <ul class="clean">{% for c in r.fortalezas %}<li>{{ c.nombre }}<b class="derecha">{{ c.ponderado | dec }}</b></li>{% endfor %}</ul>
+        {% else %}<p class="mut">Ninguna competencia llega a 4,0.</p>{% endif %}
+    </div>
+    <div class="card">
+        <h3>Oportunidades de mejora</h3>
+        {% if r.mejoras %}
+            <ul class="clean">{% for c in r.mejoras %}<li>{{ c.nombre }}<b class="derecha">{{ c.ponderado | dec }}</b></li>{% endfor %}</ul>
+            <p class="small" style="margin-top:10px"><a href="{{ url_for('planes', empleado=emp.id) }}">Llevarlas al plan de desarrollo</a></p>
+        {% else %}<p class="mut">Ninguna competencia está por debajo de 3,5.</p>{% endif %}
+    </div>
+    <div class="card">
+        <h3>Brechas de percepción</h3>
+        {% if r.brechas %}
+            <ul class="clean">
+            {% for c in r.brechas %}
+                <li><b>{{ c.nombre }}</b>: se califica {{ c.auto | dec }} y los demás {{ c.otros | dec }}.
+                    <span class="mut">{% if c.auto > c.otros %}Punto ciego: conversarlo con evidencias en la retroalimentación.{% else %}Fortaleza que la persona no reconoce en sí misma.{% endif %}</span></li>
+            {% endfor %}
+            </ul>
+        {% else %}<p class="mut">La autoevaluación coincide con la visión de los demás (diferencia menor a un punto).</p>{% endif %}
+    </div>
+</section>
+{% endif %}
+
+<section class="band" id="objetivos">
+    <h2>Objetivos del período (APO)</h2>
+    <p class="mut small">Se acuerdan entre el jefe y el colaborador al inicio del período y se miden al cierre.
+        {% if r.objetivos %}Suma de pesos: <b class="{{ '' if r.peso_total_objetivos == 100 else 'alerta' }}">{{ r.peso_total_objetivos | dec(0) }} %</b>{% if r.peso_total_objetivos != 100 %} (debe sumar 100 %){% endif %}.{% endif %}
+        El cumplimiento de cada objetivo se limita a 120 %.</p>
+    {% set abierto = periodo and periodo.estado == 'abierto' and puede_editar %}
+    {% if r.objetivos %}
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Objetivo</th><th class="num">Meta</th><th class="num">Resultado</th><th class="num">Peso</th><th style="width:26%">Cumplimiento</th>{% if abierto %}<th></th>{% endif %}</tr>
+            {% for o in r.objetivos %}
+            <tr {% if o.id == obj_form.id %}class="editando"{% endif %}>
+                <td>{{ o.descripcion }}<br><span class="mut small">{{ 'Menor es mejor' if o.sentido == 'menor' else 'Mayor es mejor' }}{% if o.unidad %} · {{ o.unidad }}{% endif %}</span></td>
+                <td class="num">{{ o.meta | dec(0) if o.meta == o.meta | int else o.meta | dec }}</td>
+                <td class="num">{% if o.resultado is none %}—{% else %}{{ o.resultado | dec(0) if o.resultado == o.resultado | int else o.resultado | dec }}{% endif %}</td>
+                <td class="num">{{ o.peso | dec(0) }} %</td>
+                <td>
+                    {% if o.cumplimiento is none %}<span class="mut">Sin resultado</span>
+                    {% else %}
+                    <div class="medidor-fila">
+                        <div class="medidor {% if o.cumplimiento < 0.9 %}bajo{% endif %}"><span {{ estilo('width', o.cumplimiento / 1.2 * 100) }}></span></div>
+                        <b>{{ (o.cumplimiento * 100) | dec(0) }} %</b>
+                    </div>
+                    {% endif %}
+                </td>
+                {% if abierto %}
+                <td class="acciones">
+                    <a class="btn sm ghost" href="{{ url_for('resultados', empleado=emp.id, editar=o.id) }}#form-objetivo">Editar</a>
+                    <form method="post" action="{{ url_for('objetivos_eliminar', obj_id=o.id) }}" style="display:inline"
+                          onsubmit="return confirm('¿Eliminar este objetivo?');">
+                        <button class="btn sm danger">Quitar</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+        <p class="mut">Este colaborador aún no tiene objetivos en el período.</p>
+    {% endif %}
+
+    {% if abierto %}
+    <form method="post" action="{{ url_for('objetivos_guardar') }}" class="card" id="form-objetivo" style="margin-top:16px">
+        <h3>{{ 'Editar objetivo' if obj_form.id else 'Agregar objetivo' }}</h3>
+        <input type="hidden" name="empleado_id" value="{{ emp.id }}">
+        {% if obj_form.id %}<input type="hidden" name="id" value="{{ obj_form.id }}">{% endif %}
+        <div class="two">
+            <label class="fld"><span>Objetivo o indicador</span>
+                <input name="descripcion" required value="{{ obj_form.descripcion or '' }}" placeholder="Ej.: Unidades ensambladas por turno"></label>
+            <label class="fld"><span>Unidad de medida</span>
+                <input name="unidad" value="{{ obj_form.unidad or '' }}" placeholder="unidades, %, horas, PPM…"></label>
+        </div>
+        <div class="three">
+            <label class="fld"><span>Meta</span>
+                <input name="meta" type="number" step="any" min="0" required value="{{ obj_form.meta if obj_form.meta is not none else '' }}"></label>
+            <label class="fld"><span>Resultado real (al cierre)</span>
+                <input name="resultado" type="number" step="any" min="0" value="{{ obj_form.resultado if obj_form.resultado is not none else '' }}" placeholder="Vacío si aún no se mide"></label>
+            <label class="fld"><span>Peso (%)</span>
+                <input name="peso" type="number" step="any" min="1" max="100" required value="{{ obj_form.peso if obj_form.peso is not none else '' }}"></label>
+        </div>
+        <label class="fld" style="max-width:360px"><span>Sentido del indicador</span>
+            <select name="sentido">
+                <option value="mayor" {% if obj_form.sentido != 'menor' %}selected{% endif %}>Mayor es mejor (producción, cumplimiento)</option>
+                <option value="menor" {% if obj_form.sentido == 'menor' %}selected{% endif %}>Menor es mejor (defectos, tiempos, accidentes)</option>
+            </select>
+        </label>
+        <div class="row end">
+            {% if obj_form.id %}<a class="btn ghost" href="{{ url_for('resultados', empleado=emp.id) }}#objetivos">Cancelar</a>{% endif %}
+            <button class="btn">{{ 'Guardar cambios' if obj_form.id else 'Agregar objetivo' }}</button>
+        </div>
+    </form>
+    {% else %}
+        <p class="mut small">{% if not puede_editar %}Los objetivos los acuerda y registra tu jefe inmediato o Gestión Humana.
+            {% else %}El período {{ periodo_actual }} está cerrado: los objetivos solo se pueden consultar.{% endif %}</p>
+    {% endif %}
+</section>
+
+{% set comentarios = r.evaluaciones | selectattr('fortalezas') | list + r.evaluaciones | rejectattr('fortalezas') | selectattr('mejoras') | list %}
+{% if comentarios %}
+<section class="band">
+    <h2>Comentarios recibidos</h2>
+    <ul class="clean">
+    {% for v in comentarios %}
+        <li>
+            <b>{{ r.relaciones[v.relacion_id].nombre }} · {{ v.evaluador if v.relacion_id in ['auto', 'jefe'] else 'anónimo' }}</b>
+            {% if v.fortalezas %}<br><span class="mut">Fortalezas:</span> {{ v.fortalezas }}{% endif %}
+            {% if v.mejoras %}<br><span class="mut">Por mejorar:</span> {{ v.mejoras }}{% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+</section>
+{% endif %}
+{% endblock %}

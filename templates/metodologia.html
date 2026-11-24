@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block titulo %}Cómo funciona{% endblock %}
+
+{% block contenido %}
+<section class="band">
+    <p class="eyebrow">Cómo funciona</p>
+    <h1>Un ciclo de evaluación que termina en desarrollo, no en una nota</h1>
+    <p class="lead">
+        Compás 360 combina la evaluación por competencias, la evaluación de 360 grados y la administración
+        por objetivos (APO). Los resultados alimentan un plan de desarrollo basado en el modelo de creación
+        de conocimiento de Nonaka y Takeuchi.
+    </p>
+</section>
+
+<section class="band grid2">
+    <div>
+        <h2>Flujo de operación</h2>
+        <ol class="flow">
+            <li><span><b>Gestión Humana configura el período</b>Registra colaboradores, cargos, área, nivel de talento y jefe inmediato.</span></li>
+            <li><span><b>Jefe y colaborador acuerdan objetivos</b>Cada objetivo tiene meta, peso y sentido (mayor o menor es mejor). Los pesos suman 100 %.</span></li>
+            <li><span><b>El colaborador se autoevalúa</b>Usa la misma escala de conductas que usarán los demás.</span></li>
+            <li><span><b>Evaluación 360°</b>Evalúan el jefe inmediato, uno o más pares y, si la persona tiene equipo, sus colaboradores (de forma anónima).</span></li>
+            <li><span><b>El sistema consolida</b>Pondera las fuentes, calcula el cumplimiento de objetivos, clasifica el desempeño y detecta fortalezas, debilidades y brechas de percepción.</span></li>
+            <li><span><b>Reunión de retroalimentación</b>Jefe y colaborador revisan los resultados con evidencias y registran acuerdos.</span></li>
+            <li><span><b>Plan de desarrollo y seguimiento</b>Se definen acciones por competencia según el modelo SECI, con responsable y fecha, y se hace seguimiento hasta cumplirlas.</span></li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h2>Reglas de cálculo</h2>
+        <table class="tbl">
+            <tr><th>Fuente 360°</th><th class="num">Peso</th></tr>
+            {% for r in relaciones %}
+                <tr><td>{{ r.nombre }}</td><td class="num">{{ (r.peso * 100) | round | int }} %</td></tr>
+            {% endfor %}
+        </table>
+        <p class="small" style="margin-top:14px">Si falta una fuente, su peso se reparte de forma proporcional entre las demás.</p>
+        <p><b>Puntaje final</b> = 60 % competencias (promedio ponderado ÷ 5 × 100) + 40 % objetivos (cumplimiento ponderado, máximo 100).</p>
+        <table class="tbl">
+            <tr><th>Clasificación</th><th class="num">Puntaje</th></tr>
+            <tr><td><span class="badge sm k-s">Sobresaliente</span></td><td class="num">90 a 100</td></tr>
+            <tr><td><span class="badge sm k-c">Cumple</span></td><td class="num">75 a 89,9</td></tr>
+            <tr><td><span class="badge sm k-d">En desarrollo</span></td><td class="num">60 a 74,9</td></tr>
+            <tr><td><span class="badge sm k-r">Requiere mejora</span></td><td class="num">menos de 60</td></tr>
+        </table>
+        <p class="small" style="margin-top:14px">Fortaleza: competencia con 4,0 o más. Oportunidad de mejora: menos de 3,5.
+        Brecha de percepción: diferencia de un punto o más entre la autoevaluación y el promedio de los demás.</p>
+    </div>
+</section>
+
+<section class="band">
+    <h2>Escala de conductas por competencia (BARS)</h2>
+    <p class="mut small">Cada nivel describe una conducta observable en el puesto, para reducir la subjetividad del evaluador.</p>
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Competencia</th><th>1 · Muy bajo</th><th>3 · Esperado</th><th>5 · Excelente</th></tr>
+            {% for c in competencias %}
+                <tr>
+                    <td><b>{{ c.nombre }}</b><br><span class="mut small">{{ c.descripcion }}</span></td>
+                    <td>{{ niveles[c.id][1] }}</td>
+                    <td>{{ niveles[c.id][3] }}</td>
+                    <td>{{ niveles[c.id][5] }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+</section>
+
+<section class="band grid3">
+    <div class="card"><h3>Gestión Humana</h3><p>Administra el sistema, abre los períodos, hace seguimiento del avance y usa el panel para planear la capacitación.</p></div>
+    <div class="card"><h3>Jefe inmediato</h3><p>Acuerda objetivos, evalúa, conduce la retroalimentación y acompaña el plan de desarrollo.</p></div>
+    <div class="card"><h3>Colaborador, pares y equipo</h3><p>Se autoevalúa, evalúa a compañeros y líderes de forma anónima y asume compromisos de mejora.</p></div>
+</section>
+{% endblock %}

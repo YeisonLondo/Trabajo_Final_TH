@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block titulo %}Colaboradores{% endblock %}
+
+{% block contenido %}
+<section class="band">
+    <div class="head-row">
+        <div>
+            <p class="eyebrow">Colaboradores</p>
+            <h1>{{ lista | length }} colaborador{{ 'es' if lista | length != 1 }}{% if buscar or area %} encontrado{{ 's' if lista | length != 1 }}{% else %} registrado{{ 's' if lista | length != 1 }}{% endif %}</h1>
+        </div>
+        <a class="btn" href="{{ url_for('colaboradores_nuevo') }}">Nuevo colaborador</a>
+    </div>
+
+    {# Filtros: se envían por GET para que la búsqueda quede en la dirección #}
+    <form class="filtros" method="get">
+        <label class="fld"><span>Buscar</span>
+            <input type="search" name="buscar" value="{{ buscar }}" placeholder="Nombre o cargo">
+        </label>
+        <label class="fld"><span>Área</span>
+            <select name="area">
+                <option value="">Todas</option>
+                {% for a in areas %}
+                    <option {% if a == area %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="chk"><input type="checkbox" name="inactivos" value="1" {% if ver_inactivos %}checked{% endif %}> Ver inactivos</label>
+        <div class="row">
+            <button class="btn">Filtrar</button>
+            {% if buscar or area or ver_inactivos %}<a class="btn ghost" href="{{ url_for('colaboradores') }}">Limpiar</a>{% endif %}
+        </div>
+    </form>
+
+    {% if lista %}
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr>
+                <th>Colaborador</th><th>Cargo</th><th>Área</th><th>Nivel</th><th>Jefe inmediato</th>
+                <th>Estado {{ periodo_actual }}</th><th></th>
+            </tr>
+            {% for e in lista %}
+            <tr {% if not e.activo %}class="inactivo"{% endif %}>
+                <td>
+                    <a class="nombre" href="{{ url_for('resultados', empleado=e.id) }}">{{ e.nombre }}</a>
+                    <br><span class="mut small">{% if e.usuario %}{{ e.usuario }} · {{ roles[e.rol] }}{% else %}Sin usuario{% endif %}</span>
+                    {% if not e.activo %}<br><span class="chip">Inactivo</span>{% endif %}
+                </td>
+                <td>{{ e.cargo }}</td>
+                <td>{{ e.area }}</td>
+                <td style="white-space:nowrap">{{ e.nivel }}</td>
+                <td>{{ e.jefe or '—' }}</td>
+                <td>
+                    {% if e.num_evaluaciones == 0 %}
+                        <span class="chip">Sin evaluar</span>
+                    {% elif e.auto_jefe >= 2 %}
+                        <span class="chip ok">Completa · {{ e.num_evaluaciones }} eval.</span>
+                    {% else %}
+                        <span class="chip warn">Pendiente · {{ e.num_evaluaciones }} eval.</span>
+                    {% endif %}
+                </td>
+                <td class="acciones">
+                    <a class="btn sm ghost" href="{{ url_for('colaboradores_editar', empleado_id=e.id) }}">Editar</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <p class="mut small" style="margin-top:12px">
+        "Completa" significa que la persona ya tiene autoevaluación y evaluación del jefe inmediato en el período.
+    </p>
+    {% else %}
+        <p class="lead mut">No hay colaboradores que coincidan con la búsqueda.</p>
+    {% endif %}
+</section>
+{% endblock %}

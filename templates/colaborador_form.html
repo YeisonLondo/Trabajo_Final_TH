@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Nuevo colaborador' if nuevo else 'Editar colaborador' }}{% endblock %}
+
+{% block contenido %}
+<section class="band formulario">
+    <p class="eyebrow"><a href="{{ url_for('colaboradores') }}">Colaboradores</a> / {{ 'Nuevo' if nuevo else 'Editar' }}</p>
+    <h1>{{ 'Nuevo colaborador' if nuevo else datos.nombre }}</h1>
+
+    <form method="post" class="card">
+        <label class="fld"><span>Nombre completo</span>
+            <input name="nombre" required value="{{ datos.nombre or '' }}">
+        </label>
+        <label class="fld"><span>Cargo</span>
+            <input name="cargo" required value="{{ datos.cargo or '' }}" placeholder="Ej.: Operario de ensamble">
+        </label>
+
+        <div class="two">
+            <label class="fld"><span>Área</span>
+                <select name="area">
+                    {% for a in areas %}<option {% if a == datos.area %}selected{% endif %}>{{ a }}</option>{% endfor %}
+                </select>
+            </label>
+            <label class="fld"><span>Nivel de talento</span>
+                <select name="nivel">
+                    {% for n in niveles %}<option {% if n == datos.nivel %}selected{% endif %}>{{ n }}</option>{% endfor %}
+                </select>
+            </label>
+        </div>
+
+        <label class="fld"><span>Jefe inmediato</span>
+            <select name="jefe_id">
+                <option value="">Sin jefe registrado en el sistema</option>
+                {% for j in jefes %}
+                    <option value="{{ j.id }}" {% if j.id == datos.jefe_id %}selected{% endif %}>{{ j.nombre }} · {{ j.cargo }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <div class="two">
+            <label class="fld"><span>Fecha de ingreso</span>
+                <input type="date" name="fecha_ingreso" value="{{ datos.fecha_ingreso or '' }}">
+            </label>
+            <div>
+                <label class="chk"><input type="checkbox" name="es_lider" value="1" {% if datos.es_lider %}checked{% endif %}>
+                    Tiene personal a cargo (se evalúa liderazgo)</label>
+                <label class="chk"><input type="checkbox" name="activo" value="1" {% if datos.activo %}checked{% endif %}>
+                    Activo en la empresa</label>
+            </div>
+        </div>
+
+        <h3 style="margin-top:10px">Acceso al sistema</h3>
+        <div class="two">
+            <label class="fld"><span>Rol</span>
+                <select name="rol">
+                    {% for k, nombre in roles.items() %}
+                        <option value="{{ k }}" {% if k == datos.rol %}selected{% endif %}>{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div>
+                {% if not nuevo and datos.usuario %}
+                    <p class="small" style="margin:26px 0 6px">Usuario: <b>{{ datos.usuario }}</b></p>
+                    <label class="chk"><input type="checkbox" name="restablecer" value="1"> Restablecer la contraseña a la inicial</label>
+                {% else %}
+                    <p class="mut small" style="margin-top:26px">Al guardar se crea su usuario con la contraseña inicial; deberá cambiarla en su primer ingreso.</p>
+                {% endif %}
+            </div>
+        </div>
+        <p class="mut small">Gestión Humana administra todo · Jefe gestiona a su equipo directo · Colaborador se autoevalúa y consulta sus resultados.</p>
+
+        <div class="row end">
+            <a class="btn ghost" href="{{ url_for('colaboradores') }}">Cancelar</a>
+            <button class="btn">{{ 'Registrar' if nuevo else 'Guardar cambios' }}</button>
+        </div>
+    </form>
+
+    {% if not nuevo %}
+    {# Formulario aparte para eliminar, con confirmación del navegador #}
+    <form method="post" action="{{ url_for('colaboradores_eliminar', empleado_id=datos.id) }}" class="zona-peligro"
+          onsubmit="return confirm('{{ '¿Marcar a esta persona como inactiva?' if num_eval else '¿Eliminar definitivamente a esta persona?' }}');">
+        <div>
+            <b>{{ 'Retirar colaborador' if num_eval else 'Eliminar colaborador' }}</b>
+            <p class="mut small">
+                {% if num_eval %}
+                    Tiene {{ num_eval }} evaluaciones registradas, así que no se borra: queda inactivo y se conserva su historial.
+                {% else %}
+                    No tiene evaluaciones, así que se borrará de forma definitiva.
+                {% endif %}
+            </p>
+        </div>
+        <button class="btn danger">{{ 'Marcar como inactivo' if num_eval else 'Eliminar' }}</button>
+    </form>
+    {% endif %}
+</section>
+{% endblock %}

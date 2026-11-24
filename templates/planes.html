@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block titulo %}Plan de desarrollo · {{ emp.nombre }}{% endblock %}
+
+{# Escribe el atributo style completo desde Jinja (así el editor no lo marca como CSS inválido) #}
+{% macro estilo(propiedad, porcentaje) %}style="{{ propiedad }}: {{ porcentaje | round(1) }}%"{% endmacro %}
+
+{% block contenido %}
+<section class="band">
+    <div class="head-row">
+        <form method="get" class="selector">
+            <p class="eyebrow">Plan de desarrollo individual · período {{ periodo_actual }}</p>
+            <label class="fld"><span>Colaborador</span>
+                <select name="empleado" onchange="this.form.submit()">
+                    {% for e in empleados %}
+                        <option value="{{ e.id }}" {% if e.id == emp.id %}selected{% endif %}>{{ e.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <noscript><button class="btn sm">Ver</button></noscript>
+        </form>
+        <a class="btn ghost" href="{{ url_for('resultados', empleado=emp.id) }}">Ver resultados 360°</a>
+    </div>
+
+    <div class="ficha">
+        <div>
+            <h1>{{ emp.nombre }}</h1>
+            <p class="mut">{{ emp.cargo }} · {{ emp.area }}{% if emp.jefe %} · Jefe: {{ emp.jefe }}{% endif %}</p>
+            {% if r.mejoras %}
+                <p>Competencias por fortalecer:
+                {% for c in r.mejoras %}<b>{{ c.nombre }}</b> ({{ c.ponderado | dec }}){% if not loop.last %}, {% endif %}{% endfor %}.</p>
+                {% if puede_editar %}<form method="post" action="{{ url_for('planes_sugerir') }}">
+                    <input type="hidden" name="empleado_id" value="{{ emp.id }}">
+                    <button class="btn">Sugerir acciones según el modelo SECI</button>
+                </form>{% endif %}
+            {% elif r.num_evaluaciones %}
+                <p>No hay competencias por debajo de 3,5: el plan puede enfocarse en potenciar fortalezas o preparar a la persona para nuevos retos.</p>
+            {% else %}
+                <p class="mut">Aún no hay evaluaciones de este colaborador en el período; puedes registrar acciones de todos modos.</p>
+            {% endif %}
+        </div>
+        <div class="puntaje">
+            {% if r.final is not none %}
+                <div class="grande">{{ r.final | dec }}</div>
+                <span class="badge k-{{ r.clase.k }}">{{ r.clase.nombre }}</span>
+            {% endif %}
+            {% set cumplidas = acciones | selectattr('estado', 'equalto', 'Cumplida') | list | length %}
+            <p class="mut small" style="margin-top:10px">
+                {{ acciones | length }} acciones · {{ cumplidas }} cumplidas
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="band" id="acciones">
+    <h2>Acciones de desarrollo</h2>
+    {% if acciones %}
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Competencia</th><th>Acción</th><th>Modo SECI</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th><th></th></tr>
+            {% for a in acciones %}
+            {% set vencida = a.estado != 'Cumplida' and a.fecha_limite and a.fecha_limite < hoy %}
+            <tr>
+                <td>{{ a.competencia }}</td>
+                <td>{{ a.accion }}</td>
+                <td><span class="seci seci-{{ a.modo_seci }}">{{ modos[a.modo_seci][0] }}</span></td>
+                <td>{{ a.responsable or '—' }}</td>
+                <td style="white-space:nowrap">{{ a.fecha_limite or '—' }}{% if vencida %}<br><span class="alerta small">Vencida</span>{% endif %}</td>
+                <td>
+                    {% if puede_editar %}<form method="post" action="{{ url_for('acciones_estado', accion_id=a.id) }}">
+                        <select name="estado" onchange="this.form.submit()" aria-label="Estado de la acción"
+                                class="estado estado-{{ a.estado | replace(' ', '-') | lower }}">
+                            {% for e in estados %}<option {% if e == a.estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+                        </select>
+                        <noscript><button class="btn sm">OK</button></noscript>
+                    </form>{% else %}<span class="chip">{{ a.estado }}</span>{% endif %}
+                </td>
+                <td class="acciones">
+                    {% if puede_editar %}<form method="post" action="{{ url_for('acciones_eliminar', accion_id=a.id) }}"
+                          onsubmit="return confirm('¿Quitar esta acción del plan?');">
+                        <button class="btn sm danger">Quitar</button>
+                    </form>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+        <p class="mut">El plan aún no tiene acciones.</p>
+    {% endif %}
+
+    {% if puede_editar %}<form method="post" action="{{ url_for('acciones_guardar') }}" class="card" style="margin-top:16px">
+        <h3>Agregar acción</h3>
+        <input type="hidden" name="empleado_id" value="{{ emp.id }}">
+        <div class="two">
+            <label class="fld"><span>Competencia</span>
+                <select name="competencia_id">
+                    {% for c in r.competencias %}
+                        <option value="{{ c.id }}" {% if r.mejoras and r.mejoras[0].id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="fld"><span>Modo de conocimiento (SECI)</span>
+                <select name="modo_seci">
+                    {% for k, m in modos.items() %}<option value="{{ k }}">{{ m[0] }}</option>{% endfor %}
+                </select>
+            </label>
+        </div>
+        <label class="fld"><span>Acción</span>
+            <input name="accion" required placeholder="Ej.: Acompañamiento en el puesto con un operario referente"></label>
+        <div class="two">
+            <label class="fld"><span>Responsable</span>
+                <input name="responsable" value="{{ emp.jefe or 'Gestión Humana' }}"></label>
+            <label class="fld"><span>Fecha límite</span>
+                <input type="date" name="fecha_limite" value="{{ fecha_sugerida }}" min="{{ hoy }}" required></label>
+        </div>
+        <div class="row end"><button class="btn">Agregar acción</button></div>
+    </form>{% endif %}
+</section>
+
+<section class="band grid2">
+    {% if puede_editar %}
+    <form method="post" action="{{ url_for('retroalimentacion_guardar') }}" class="card" id="retro">
+        <h2>Reunión de retroalimentación</h2>
+        <p class="mut small">Conversación entre jefe y colaborador para revisar los resultados 360° con evidencias y acordar el plan.
+            {% if retro %}<span class="chip ok">Registrada</span>{% else %}<span class="chip warn">Pendiente</span>{% endif %}</p>
+        <input type="hidden" name="empleado_id" value="{{ emp.id }}">
+        <label class="fld" style="max-width:240px"><span>Fecha de la reunión</span>
+            <input type="date" name="fecha" value="{{ retro.fecha if retro else '' }}" min="{{ retro_min }}" max="{{ retro_max }}" required></label>
+        <p class="mut small">Se registra después de realizar la reunión: la fecha debe estar entre el inicio del período y hoy.</p>
+        <label class="fld"><span>Acuerdos</span>
+            <textarea name="acuerdos" rows="4">{{ retro.acuerdos if retro else '' }}</textarea></label>
+        <label class="fld"><span>Compromiso del colaborador</span>
+            <textarea name="compromiso" rows="3">{{ retro.compromiso if retro else '' }}</textarea></label>
+        <div class="row end"><button class="btn">Guardar retroalimentación</button></div>
+    </form>
+    {% else %}
+    <div class="card" id="retro">
+        <h2>Reunión de retroalimentación</h2>
+        {% if retro %}
+            <p><span class="chip ok">Realizada el {{ retro.fecha }}</span></p>
+            {% if retro.acuerdos %}<p><b>Acuerdos:</b> {{ retro.acuerdos }}</p>{% endif %}
+            {% if retro.compromiso %}<p><b>Compromiso:</b> {{ retro.compromiso }}</p>{% endif %}
+        {% else %}
+            <p class="mut">Aún no se ha registrado la reunión de retroalimentación de este período.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Por qué el modelo SECI</h2>
+        <p>Nonaka y Takeuchi explican que una organización crea conocimiento cuando convierte el saber tácito
+           (la experiencia de cada persona) en explícito, y viceversa. En una planta, gran parte del saber de los
+           operarios es tácito; el plan lo aprovecha en cuatro modos:</p>
+        <ul class="clean">
+            {% for k, m in modos.items() %}
+                <li><span class="seci seci-{{ k }}">{{ m[0] }}</span> {{ m[1] }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+
+{% if usuario.rol != 'colaborador' %}
+<section class="band">
+    <h2>Seguimiento de planes del período</h2>
+    <p class="mut small">Solo aparecen los colaboradores que tienen plan de desarrollo en el período
+        ({{ seguimiento | length }} de {{ total_activos }} colaboradores activos): cuánto han avanzado y si ya tuvieron su reunión de retroalimentación.</p>
+    {% if seguimiento %}
+    <div class="tabla-scroll">
+        <table class="tbl">
+            <tr><th>Colaborador</th><th class="num">Acciones</th><th class="num">Cumplidas</th><th style="width:30%">Avance</th><th>Retroalimentación</th></tr>
+            {% for s in seguimiento %}
+            {% set avance = (s.cumplidas or 0) / s.total if s.total else 0 %}
+            <tr {% if s.id == emp.id %}class="editando"{% endif %}>
+                <td><a class="nombre" href="{{ url_for('planes', empleado=s.id) }}">{{ s.nombre }}</a><br><span class="mut small">{{ s.area }}</span></td>
+                <td class="num">{{ s.total }}</td>
+                <td class="num">{{ s.cumplidas or 0 }}{% if s.vencidas %}<br><span class="alerta small">{{ s.vencidas }} vencida{{ 's' if s.vencidas > 1 }}</span>{% endif %}</td>
+                <td>
+                    <div class="medidor-fila">
+                        <div class="medidor"><span {{ estilo('width', avance * 100) }}></span></div>
+                        <b>{{ (avance * 100) | dec(0) }} %</b>
+                    </div>
+                </td>
+                <td>{% if s.con_retro %}<span class="chip ok">Realizada</span>{% else %}<span class="chip warn">Pendiente</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+        <p class="mut">Aún no hay planes de desarrollo en este período.</p>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}
